@@ -6,8 +6,10 @@ Tally Table
 
 'tally_table.py' script extracts a simple table from a MCNP output file.
 It uses tkinter and regex libraries.
-The script can be converted into a standalone executable. See
-section *** INSTALATION ***. Or the script can simply be run in terminal.
+The script can be converted into a standalone executable (see
+section INSTALATION) or the script can simply be run in terminal.
+
+![alt text](https://raw.githubusercontent.com/mark-fortuna/MCNP-tally-table/main/what%20it%20looks%20like.png)
 
 
 ***LIMITATIONS***
