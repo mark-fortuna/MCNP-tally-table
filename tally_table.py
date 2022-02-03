@@ -1,5 +1,6 @@
 # TO DO:
-#	- Add option to export all tallies to spreadsheet. use openpyxl
+#	- Give option to select multiple files, and to read all of them. Se link bellow:
+# 	https://stackoverflow.com/questions/16790328/open-multiple-filenames-in-tkinter-and-add-the-filesnames-to-a-list
 #   - The tallies have to be in order now. For example: if you enter gamma
 #       tallies before neutron tallies, the program can't  read the tallies.
 #       The benefit now is that the script doesn't read the whole MCNP output.
@@ -15,18 +16,25 @@
 #		Read the MCNP manual, to see all the different types of tallies.
 #		The tally type would be selected in dropdown menu, or pre-defined
 #		in first line of default_tallies file.
-# 	- All frames inside tab should have the same pading.
+# 	- All frames inside tab should have the same pading. Widths are different
+#		on macOS compared to Windows.
 # 		The tabs themselves should alse have a uniform padding.
 # 		These pad_sizes should be defined in script paramters section.
+#	- The open file location button doesn't work on MacOS
 
 
-import tkinter as tk
-import tkinter.filedialog as fd
+import tkinter as tk	# for GUI
+import tkinter.filedialog as fd		# for choosing files
 import re
+from turtle import left				# for finding tallies
 import matplotlib.pyplot as plt
 import subprocess		# for opening file locaitons in Windows file eplorer
 import os				# for getting current location
-import tkinter.scrolledtext as st	# for scrollable tally table
+import tkinter.scrolledtext as st
+from numpy import right_shift	# for scrollable tally table
+import openpyxl as xl	# for exporting to spreadsheet
+from openpyxl.styles import Border, Font, Alignment, Side		# for a nicer spreadsheet
+from string import ascii_uppercase	# for navigating spreadsheet
 
 # SCRIPT PARAMETERS
 # **************************************************************************
@@ -37,6 +45,7 @@ default_tallies_separator = '\n' # each tally in new line
 tally_entry_width = 30
 tab_width = 310
 flagged_tally_specifier = '*'
+spreadsheet_borders = 'thin'
 # **************************************************************************
 
 path_to_files = os.getcwd()
@@ -78,22 +87,26 @@ class Tab():
 			bg='green', command=make_new_tab)
 		self.new_tab_button.grid(row=1,column=0,sticky='n',padx=pad_out,pady=pad_out)
 		# vertical space
-		tk.Label(self.floating_frame, text='', width=10, heigh=10).grid(row=2,column=0)
+		tk.Label(self.floating_frame, text='', width=10, heigh=8).grid(row=2,column=0)
 		# Plot button
-		self.plot_button = tk.Button(self.floating_frame, text='Plot', padx=pad_in,pady=pad_in, command=plot_all)
+		self.plot_button = tk.Button(self.floating_frame, text='Plot', padx=pad_in, pady=pad_in, command=plot_all)
 		self.plot_button.grid(row=3,column=0,padx=pad_out,pady=pad_out)
+		# Make spreadsheet button
+		self.make_spreadsheet = tk.Button(self.floating_frame, text='Make spreadsheet',
+			padx=pad_in, pady=pad_in, command=make_spreadsheet)
+		self.make_spreadsheet.grid(row=4,column=0,padx=pad_out,pady=pad_out)
 		# vertical space
-		tk.Label(self.floating_frame, text='', width=10, heigh=10).grid(row=4,column=0)
+		tk.Label(self.floating_frame, text='', width=10, heigh=9).grid(row=5,column=0)
 		# Open file locations button
 		self.open_file_location_button = tk.Button(self.floating_frame,
 			text='Open file location', padx=pad_in,pady=pad_in, command=open_file_locations)
-		self.open_file_location_button.grid(row=5,column=0,padx=pad_out,pady=pad_out)
+		self.open_file_location_button.grid(row=6,column=0,padx=pad_out,pady=pad_out)
 		# Debug button
 		global debug
 		if debug: d_text = 'Debug  ON'
 		else: d_text = 'Debug OFF'
 		self.debug_button = tk.Button(self.floating_frame, text=d_text, padx=pad_in,pady=pad_in, command=debug_toggle)
-		self.debug_button.grid(row=6,column=0,padx=pad_out,pady=pad_out)
+		self.debug_button.grid(row=7,column=0,padx=pad_out,pady=pad_out)
 		#
 		## File frame ##
 		self.file_frame = tk.LabelFrame(self.tab, text='',width=tab_width,height=70)
@@ -267,7 +280,7 @@ class Tab():
 		if debug: d_text = 'Debug  ON'
 		else: d_text = 'Debug OFF'
 		self.debug_button = tk.Button(self.floating_frame, text=d_text, padx=pad_in,pady=pad_in, command=debug_toggle)
-		self.debug_button.grid(row=5,column=0,padx=pad_out,pady=pad_out)
+		self.debug_button.grid(row=7,column=0,padx=pad_out,pady=pad_out)
 
 
 # this function is not in class Tab() because it
@@ -323,6 +336,54 @@ def debug_toggle():
 
 def open_file_locations():
 	subprocess.Popen(f'explorer "{path_to_files}"')
+
+def make_spreadsheet():
+	# this function will be called when the make spreadsheet button is pressed
+	if debug: print('Make spreadsheet button has been pressed.')
+	work_book = xl.Workbook()
+	if debug: print('Made spreadsheet work book.')
+	work_sheet = work_book.active
+	# run loop over list of open tabs
+	for i,v in enumerate(list_of_tabs):
+		if v.IsOpen(): #if tab is open save data to spreadsheet
+			# first lets make the title and column names
+			start_column = ascii_uppercase[3*i]
+			end_column = ascii_uppercase[3*i+2]
+			work_sheet.merge_cells(f'{start_column}1:{end_column}1')
+			merged_cell = work_sheet.cell(row=1,column=3*i+1)
+			merged_cell.value = v.label
+			work_sheet.cell(row=2,column=3*i+1).value = 'Tally'
+			work_sheet.cell(row=2,column=3*i+2).value = 'Count'
+			work_sheet.cell(row=2,column=3*i+3).value = 'Error'
+			# then input the data values
+			for k in range(len(v.tally[0])):
+				tn = v.tally[0][k]			# tally number
+				tc = v.tally[1][k]			# tally count
+				te = v.tally[2][k]			# tally error
+				work_sheet.cell(row=k+3,column=3*i+1).value = tn
+				work_sheet.cell(row=k+3,column=3*i+2).value = tc
+				work_sheet.cell(row=k+3,column=3*i+2).number_format = '0.00E+00'
+				work_sheet.cell(row=k+3,column=3*i+3).value = te
+			# make vertical borders
+			left_column = work_sheet.column_dimensions[start_column]
+			right_column = work_sheet.column_dimensions[end_column]
+			left_column.border = Border(left = Side(border_style = spreadsheet_borders,
+				color="00000000"))
+			right_column.border = Border(right = Side(border_style = spreadsheet_borders,
+				color="00000000"))
+	# Make first bold and centered
+	first_row = work_sheet.row_dimensions[1]
+	first_row.font = Font(name = 'Calibri', bold = True)
+	first_row.alignment = Alignment(horizontal = 'center', vertical = 'center')
+	# Make line bellow 2nd row
+	second_row = work_sheet.row_dimensions[2]
+	second_row.border = Border(bottom = Side(border_style = spreadsheet_borders,
+		color="00000000"))
+	if debug: print('Data hes been writen to spreadsheet.')
+	# Save spreadsheet
+	spreadsheet_name = fd.asksaveasfilename(defaultextension='.xlsx', title='Save spreadsheet as ...')
+	work_book.save(spreadsheet_name)
+	if debug: print('Spreadsheet has been saved.')
 
 # see if 'default_tallies' exists
 # if it doesn't leave entry field blank
