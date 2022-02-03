@@ -5,7 +5,7 @@ Tally Table
 ***DESCRIPTION***
 
 'tally_table.py' script extracts a simple table from a MCNP output file.
-It uses tkinter, regex, matplotlib, subprocess and os libraries.
+It uses tkinter, regex, matplotlib, subprocess, openpyxl and os libraries.
 The script can be converted into a standalone executable (see
 section INSTALATION) or the script can simply be run in terminal.
 
